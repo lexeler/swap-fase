@@ -1,0 +1,28 @@
+[project]
+name = "swapfase"
+version = "0.1.0"
+description = "Local real-time webcam face-swap desktop app (single-image / InsightFace inswapper)"
+requires-python = ">=3.12"
+readme = "CLAUDE.md"
+
+# NOTE: runtime dependencies are pinned in requirements.txt (the authoritative,
+# frozen pin set installed into the isolated project-local .venv). The literal
+# pins are listed here for documentation/parity; CUDA/cuDNN come from the
+# onnxruntime-gpu [cuda,cudnn] extras — never a system CUDA toolkit.
+dependencies = [
+    "onnxruntime-gpu[cuda,cudnn]==1.22.0",
+    "insightface==1.0.1",
+    "opencv-python==4.13.0.92",
+    "numpy==2.2.1",
+    "PySide6==6.8.*",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-dir]
+"" = "src"

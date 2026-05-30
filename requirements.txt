@@ -1,0 +1,19 @@
+# swap-fase — pinned dependency set (installed into the isolated project-local .venv)
+#
+# Install with uv (preferred) into an isolated venv — NEVER the global/shared env:
+#   uv venv --python 3.12 .venv
+#   uv pip install --python .venv/bin/python -r requirements.txt
+#
+# CUDA 12.x runtime + cuDNN 9.x come from the onnxruntime-gpu [cuda,cudnn] extras
+# below — NO system CUDA toolkit (CLAUDE.md "What NOT to Use").
+#
+# IMPORTANT: install ONLY onnxruntime-gpu. Never the CPU `onnxruntime` package in
+# the same venv — it collides with onnxruntime-gpu's files and causes a silent CPU
+# fallback. insightface pulls `onnxruntime` transitively; it must be uninstalled and
+# onnxruntime-gpu reinstalled (see 01-01-SUMMARY.md Deviations).
+
+onnxruntime-gpu[cuda,cudnn]==1.22.0
+insightface==1.0.1
+opencv-python==4.13.0.92
+numpy==2.2.1
+PySide6==6.8.*

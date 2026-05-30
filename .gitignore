@@ -1,0 +1,18 @@
+# Isolated project-local venv — never committed (CLAUDE.md: don't touch global env)
+.venv/
+
+# Downloaded model weights (buffalo_l, inswapper_128*.onnx) — fetched/cached locally, offline
+models/
+
+# Python bytecode / caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Swap output scratch files
+swapped*.jpg
