@@ -8,9 +8,12 @@ Run directly with the venv python under the CUDA ``LD_LIBRARY_PATH`` fallback
 $SITE/nvidia/curand/lib:$SITE/nvidia/cufft/lib:$SITE/nvidia/cuda_runtime/lib:${LD_LIBRARY_PATH:-}" \
       PYTHONPATH=src .venv/bin/python tests/test_engine.py
 
-Real face images come bundled with insightface (``Tom_Hanks_54745.png`` — a
-single face; ``t1.jpg`` — a group photo with multiple faces), so the tests
-exercise the genuine detect→embed→swap path on the GPU, not mocks.
+Real face images come bundled with insightface: ``t1.jpg`` is a group photo with
+several full-context faces that RetinaFace detects, so the tests exercise the
+genuine detect→embed→swap path on the GPU, not mocks. (``Tom_Hanks_54745.png``
+is intentionally NOT used as a detection fixture — it is a 112×112 *pre-aligned*
+recognition crop with no surrounding context, which the detector legitimately
+does not flag as a face.)
 """
 
 from __future__ import annotations
@@ -28,10 +31,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from swapfase.bootstrap import MODELS_DIR, ensure_models  # noqa: E402
 from swapfase.engine import FaceEngine, NoFaceError  # noqa: E402
 
-# Real bundled sample images (HIGH-confidence faces).
+# Real bundled sample image (group photo, several detectable faces).
 _IMG_DIR = Path(insightface.__file__).resolve().parent / "data" / "images"
-SINGLE_FACE = str(_IMG_DIR / "Tom_Hanks_54745.png")  # one clear face
-MULTI_FACE = str(_IMG_DIR / "t1.jpg")  # group photo, several faces
+# A full-context face image RetinaFace detects; used both as the source-of-face
+# fixture (embed picks its largest face) and the multi-face fixture.
+FACE_IMG = str(_IMG_DIR / "t1.jpg")
 
 
 def _bbox_area(face) -> float:
@@ -50,13 +54,14 @@ def test_provider_is_set(engine: FaceEngine) -> None:
     print(f"  provider={engine.provider} using_gpu={engine.using_gpu}")
 
 
-def test_embed_single_face(engine: FaceEngine) -> None:
-    img = cv2.imread(SINGLE_FACE)
-    assert img is not None, f"could not read {SINGLE_FACE}"
+def test_embed_returns_face_with_embedding(engine: FaceEngine) -> None:
+    img = cv2.imread(FACE_IMG)
+    assert img is not None, f"could not read {FACE_IMG}"
     face = engine.embed(img)
     assert face is not None
     assert getattr(face, "normed_embedding", None) is not None, "embedding is None"
-    print("  embed(single) -> Face with normed_embedding OK")
+    assert face.normed_embedding.shape == (512,), "expected a 512-d embedding"
+    print("  embed(face image) -> Face with 512-d normed_embedding OK")
 
 
 def test_embed_no_face_raises(engine: FaceEngine) -> None:
@@ -71,8 +76,8 @@ def test_embed_no_face_raises(engine: FaceEngine) -> None:
 
 
 def test_embed_picks_largest(engine: FaceEngine) -> None:
-    img = cv2.imread(MULTI_FACE)
-    assert img is not None, f"could not read {MULTI_FACE}"
+    img = cv2.imread(FACE_IMG)
+    assert img is not None, f"could not read {FACE_IMG}"
     faces = engine.detect(img)
     assert len(faces) >= 2, f"expected a multi-face image, got {len(faces)} faces"
     chosen = engine.embed(img)
@@ -82,15 +87,15 @@ def test_embed_picks_largest(engine: FaceEngine) -> None:
 
 
 def test_detect_returns_all(engine: FaceEngine) -> None:
-    img = cv2.imread(MULTI_FACE)
+    img = cv2.imread(FACE_IMG)
     faces = engine.detect(img)
     assert len(faces) >= 2, "detect() must return ALL faces (D-06)"
     print(f"  detect(multi) -> {len(faces)} faces (all kept) OK")
 
 
 def test_process_changes_pixels(engine: FaceEngine) -> None:
-    target = engine.embed(cv2.imread(SINGLE_FACE))
-    frame = cv2.imread(MULTI_FACE)
+    target = engine.embed(cv2.imread(FACE_IMG))
+    frame = cv2.imread(FACE_IMG)
     out = engine.process(frame, target)
     assert out is not None and out.shape == frame.shape
     assert not np.array_equal(out, frame), "process() did not change any pixels"
@@ -98,7 +103,7 @@ def test_process_changes_pixels(engine: FaceEngine) -> None:
 
 
 def test_process_no_face_passthrough(engine: FaceEngine) -> None:
-    target = engine.embed(cv2.imread(SINGLE_FACE))
+    target = engine.embed(cv2.imread(FACE_IMG))
     blank = np.zeros((480, 640, 3), dtype=np.uint8)
     out = engine.process(blank, target)
     assert np.array_equal(out, blank), "no-face frame must pass through unchanged (D-18)"
@@ -109,7 +114,7 @@ def main() -> int:
     engine = build_engine()
     tests = [
         test_provider_is_set,
-        test_embed_single_face,
+        test_embed_returns_face_with_embedding,
         test_embed_no_face_raises,
         test_embed_picks_largest,
         test_detect_returns_all,
