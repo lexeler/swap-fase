@@ -17,3 +17,8 @@ insightface==1.0.1
 opencv-python==4.13.0.92
 numpy==2.2.1
 PySide6==6.8.*
+
+# Virtual camera (VCAM): push the swapped stream to a v4l2loopback node
+# (/dev/video10, card "DeepLiveCam") so Zoom/Meet/Discord can use it as a webcam.
+# Enabled with `--vcam`; lives behind the FrameSink seam (V4l2Sink/TeeSink).
+pyvirtualcam==0.15.0

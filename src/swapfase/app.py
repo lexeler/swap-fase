@@ -32,7 +32,7 @@ from .capture import CaptureThread, list_capturable_devices
 from .engine import FaceEngine, NoFaceError
 from .framebuffer import LatestFrameBuffer
 from .pipeline import InferenceWorker
-from .sink import PreviewSink
+from .sink import DEFAULT_VCAM_DEVICE, PreviewSink, TeeSink, V4l2Sink
 from .state import AppState
 
 logger = logging.getLogger(__name__)
@@ -54,7 +54,27 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--device",
         type=int,
         default=None,
-        help="force a V4L2 device index (default: first probed capturable node).",
+        help="force the INPUT V4L2 camera index to capture from (default: first "
+        "probed capturable node). Use this to choose which webcam to swap.",
+    )
+    p.add_argument(
+        "--vcam",
+        action="store_true",
+        help="ALSO output the swapped stream to a v4l2loopback virtual camera so "
+        "Zoom/Meet/Discord can use it (pick the camera named 'DeepLiveCam'). The "
+        "on-screen preview keeps working alongside it.",
+    )
+    p.add_argument(
+        "--vcam-device",
+        default=DEFAULT_VCAM_DEVICE,
+        help=f"v4l2loopback node to write the virtual camera to "
+        f"(default: {DEFAULT_VCAM_DEVICE}, card name 'DeepLiveCam').",
+    )
+    p.add_argument(
+        "--vcam-mirror",
+        action="store_true",
+        help="mirror the VIRTUAL CAMERA output too (default: the call sees you "
+        "un-mirrored / the right way round, while the preview stays a selfie view).",
     )
     p.add_argument(
         "--cpu",
@@ -124,7 +144,36 @@ def main(argv: list[str] | None = None) -> int:
     from .ui.main_window import MainWindow
 
     window = MainWindow()
-    sink = PreviewSink(window.frame_ready.emit)
+    preview_sink = PreviewSink(window.frame_ready.emit)
+
+    # Default: preview only (behaviour unchanged when --vcam is absent). With
+    # --vcam, fan the swapped frame out to BOTH the preview AND a v4l2loopback
+    # virtual camera via a TeeSink, so the user sees themselves on screen while
+    # the video call sees the face-swapped stream ("DeepLiveCam").
+    vcam_sink: V4l2Sink | None = None
+    if args.vcam:
+        # Match the capture format (capture.py forces 640×480 @ 30fps); V4l2Sink
+        # resizes any off-size frame defensively. The preview stays mirrored (D-03);
+        # the virtual camera is un-mirrored by default so call participants see the
+        # user the right way round (opt back in with --vcam-mirror).
+        try:
+            vcam_sink = V4l2Sink(
+                device=args.vcam_device,
+                width=640,
+                height=480,
+                fps=30.0,
+                mirror=args.vcam_mirror,
+            )
+        except RuntimeError as exc:
+            print(f"error: virtual camera could not start: {exc}", file=sys.stderr)
+            return 1
+        print(
+            f"virtual camera ON -> {args.vcam_device} "
+            f"(pick 'DeepLiveCam' as your camera in Zoom/Meet/Discord)"
+        )
+        sink = TeeSink([preview_sink, vcam_sink])
+    else:
+        sink = preview_sink
 
     capture = CaptureThread(device_index=device_index, buffer=buffer, state=state)
     worker = InferenceWorker(engine=engine, buffer=buffer, sink=sink, state=state)
@@ -144,6 +193,9 @@ def main(argv: list[str] | None = None) -> int:
         capture.stop()
         worker.join(timeout=3.0)
         capture.join(timeout=3.0)
+        # Release the virtual camera too (free /dev/video10 for the next run).
+        if vcam_sink is not None:
+            vcam_sink.close()
         logger.info("threads stopped; camera released")
 
     qt_app.aboutToQuit.connect(_shutdown)
