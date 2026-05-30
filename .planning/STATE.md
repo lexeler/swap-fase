@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-02-PLAN.md (models + FaceEngine + still-swap on GPU)
-last_updated: "2026-05-30T07:14:44.832Z"
+stopped_at: Completed 01-03-PLAN.md code (live skeleton); human-verify gate pending
+last_updated: "2026-05-30T07:29:33.605Z"
 last_activity: 2026-05-30
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 5
-  completed_plans: 2
-  percent: 40
+  completed_plans: 3
+  percent: 60
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-05-29)
 ## Current Position
 
 Phase: 01 (real-time-webcam-face-swap-mvp) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 Status: Ready to execute
 Last activity: 2026-05-30
 
-Progress: [████░░░░░░] 40%
+Progress: [██████░░░░] 60%
 
 ## Performance Metrics
 
@@ -54,6 +54,7 @@ Progress: [████░░░░░░] 40%
 *Updated after each plan completion*
 | Phase 01 P01 | 12min | 3 tasks | 8 files |
 | Phase 01 P02 | 8min | 3 tasks | 5 files |
+| Phase 01 P03 | 38min | 3 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -73,6 +74,10 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 1 P02]: Pinned fp32 inswapper_128 (not fp16) — published SHA256 e4a3f08c…16af gives fail-closed integrity (D-16); fp16 deferred as FPS lever (D-08)
 - [Phase ?]: [Phase 1 P02]: FaceEngine builds analyser+swapper once; embed() caches largest source face (D-05), detect() keeps all faces (D-06), process() no-face passthrough (D-18); provider from active_provider()
 - [Phase ?]: [Phase 1 P02]: Models in project-local models/ (root=MODELS_DIR); urllib mirror fetch + fail-closed hash; nothing in ~/.insightface
+- [Phase ?]: 01-03: keep-newest is a single queue.Queue(maxsize=1) drain-on-put — the latency primitive (D-15); drops 797/847 frames under a slow consumer
+- [Phase ?]: 01-03: capture device probed not hard-coded (video0+video2 capturable; video0 default; Pitfall 9); camera always released via try/finally (Pitfall 10)
+- [Phase ?]: 01-03: live pipeline measured 28.9 swap FPS on CUDAExecutionProvider, flat latency (interval 28-30 FPS); det_size left at default, no fps trade needed (D-07/D-08)
+- [Phase ?]: 01-03: FrameSink seam established (PreviewSink now; V4l2Sink/TeeSink additive later); mirror/swap applied in inference thread, UI thread only paints (Anti-Patterns 2/6)
 
 ### Pending Todos
 
@@ -101,6 +106,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-05-30T07:14:44.823Z
-Stopped at: Completed 01-02-PLAN.md (models + FaceEngine + still-swap on GPU)
+Last session: 2026-05-30T07:29:33.595Z
+Stopped at: Completed 01-03-PLAN.md code (live skeleton); human-verify gate pending
 Resume file: None
