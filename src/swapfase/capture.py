@@ -21,6 +21,7 @@ catchable exception; the friendly UI message is wired in Plan 05).
 from __future__ import annotations
 
 import logging
+import os
 import threading
 
 import cv2
@@ -33,10 +34,11 @@ logger = logging.getLogger(__name__)
 # video10 this machine exposes; only the genuinely capturable ones survive.
 _PROBE_INDICES: tuple[int, ...] = (0, 1, 2, 3, 10)
 
-# Capture format: MJPG @ 640×480 — modest resolution for fps headroom (D-07/D-08,
-# Pitfall 6; det_size/resolution is the first perf lever if fps falls short).
-_CAP_WIDTH = 640
-_CAP_HEIGHT = 480
+# Capture format: MJPG. Default 640×480 for fps headroom (D-07/D-08, Pitfall 6);
+# overridable via SWAPFASE_CAP_W / SWAPFASE_CAP_H env vars to trade fps for a
+# sharper picture (quality lever — e.g. 1280×720).
+_CAP_WIDTH = int(os.environ.get("SWAPFASE_CAP_W", "640"))
+_CAP_HEIGHT = int(os.environ.get("SWAPFASE_CAP_H", "480"))
 _FOURCC_MJPG = cv2.VideoWriter_fourcc(*"MJPG")
 
 

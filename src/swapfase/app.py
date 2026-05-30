@@ -152,15 +152,18 @@ def main(argv: list[str] | None = None) -> int:
     # the video call sees the face-swapped stream ("DeepLiveCam").
     vcam_sink: V4l2Sink | None = None
     if args.vcam:
-        # Match the capture format (capture.py forces 640×480 @ 30fps); V4l2Sink
-        # resizes any off-size frame defensively. The preview stays mirrored (D-03);
-        # the virtual camera is un-mirrored by default so call participants see the
-        # user the right way round (opt back in with --vcam-mirror).
+        # Match the ACTUAL capture resolution (capture.py reads SWAPFASE_CAP_W/H,
+        # default 640×480) so the virtual camera streams at full quality instead of
+        # downscaling. V4l2Sink resizes any off-size frame defensively. The preview
+        # stays mirrored (D-03); the virtual camera is un-mirrored by default so call
+        # participants see the user the right way round (opt back in with --vcam-mirror).
+        from .capture import _CAP_HEIGHT, _CAP_WIDTH
+
         try:
             vcam_sink = V4l2Sink(
                 device=args.vcam_device,
-                width=640,
-                height=480,
+                width=_CAP_WIDTH,
+                height=_CAP_HEIGHT,
                 fps=30.0,
                 mirror=args.vcam_mirror,
             )
