@@ -9,11 +9,11 @@
 
 ### Environment & GPU (ENV)
 
-- [ ] **ENV-01**: Все зависимости ставятся в изолированный project-local venv; глобальный/общий Python-venv не затрагивается
-- [ ] **ENV-02**: NVIDIA-драйвер работает (`nvidia-smi` отвечает) — устранён рассинхрон модуля ядра (`dkms autoinstall` + `modprobe nvidia`, ребут как fallback)
-- [ ] **ENV-03**: CUDA/cuDNN ставятся локально в venv через pip (`onnxruntime-gpu[cuda,cudnn]`), система не трогается
+- [x] **ENV-01**: Все зависимости ставятся в изолированный project-local venv; глобальный/общий Python-venv не затрагивается
+- [x] **ENV-02**: NVIDIA-драйвер работает (`nvidia-smi` отвечает) — устранён рассинхрон модуля ядра (`dkms autoinstall` + `modprobe nvidia`, ребут как fallback)
+- [x] **ENV-03**: CUDA/cuDNN ставятся локально в venv через pip (`onnxruntime-gpu[cuda,cudnn]`), система не трогается
 - [ ] **ENV-04**: Модели (`buffalo_l` + `inswapper_128.onnx`) скачиваются один раз в project-local `models/`, проверяются по SHA256; дальше работа офлайн
-- [ ] **ENV-05**: На старте приложение проверяет, что инференс реально выполняется на CUDA (а не тихо упал на CPU), и фиксирует фактический провайдер
+- [x] **ENV-05**: На старте приложение проверяет, что инференс реально выполняется на CUDA (а не тихо упал на CPU), и фиксирует фактический провайдер
 
 ### Face Swap (SWAP)
 
@@ -68,11 +68,11 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ENV-01 | Phase 1 | Pending |
-| ENV-02 | Phase 1 | Pending |
-| ENV-03 | Phase 1 | Pending |
+| ENV-01 | Phase 1 | Complete |
+| ENV-02 | Phase 1 | Complete |
+| ENV-03 | Phase 1 | Complete |
 | ENV-04 | Phase 1 | Pending |
-| ENV-05 | Phase 1 | Pending |
+| ENV-05 | Phase 1 | Complete |
 | SWAP-01 | Phase 1 | Pending |
 | SWAP-02 | Phase 1 | Pending |
 | SWAP-03 | Phase 1 | Pending |

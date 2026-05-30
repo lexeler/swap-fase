@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-stopped_at: Phase 1 context gathered
-last_updated: "2026-05-29T21:09:10.816Z"
-last_activity: 2026-05-29 — Roadmap created (single-phase MVP, 17/17 requirements mapped)
+status: executing
+stopped_at: Completed 01-01-PLAN.md (GPU hard gate PASSED)
+last_updated: "2026-05-30T07:00:28.044Z"
+last_activity: 2026-05-30
 progress:
   total_phases: 1
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_plans: 5
+  completed_plans: 1
+  percent: 20
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-29)
 
 **Core value:** Открыл приложение → подключилась вебка → моё лицо в реальном времени заменено на лицо с загруженного фото, и это идёт плавно.
-**Current focus:** Phase 1 — Real-Time Webcam Face Swap (MVP)
+**Current focus:** Phase 01 — real-time-webcam-face-swap-mvp
 
 ## Current Position
 
-Phase: 1 of 1 (Real-Time Webcam Face Swap (MVP))
-Plan: 0 of TBD in current phase
-Status: Ready to plan
-Last activity: 2026-05-29 — Roadmap created (single-phase MVP, 17/17 requirements mapped)
+Phase: 01 (real-time-webcam-face-swap-mvp) — EXECUTING
+Plan: 2 of 5
+Status: Ready to execute
+Last activity: 2026-05-30
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [██░░░░░░░░] 20%
 
 ## Performance Metrics
 
@@ -52,6 +52,7 @@ Progress: [░░░░░░░░░░] 0%
 - Trend: —
 
 *Updated after each plan completion*
+| Phase 01 P01 | 12min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -65,6 +66,9 @@ Recent decisions affecting current work:
 - Isolated project-local venv + CUDA via pip (`onnxruntime-gpu[cuda,cudnn]==1.22.0`); never touch the global Python env.
 - Whole MVP in ONE phase (user mandate); risk-first internal build order.
 - Virtual camera + quality restorers are next milestones — leave only the `FrameSink` seam now.
+- [Phase ?]: Stayed on Python 3.12 — insightface 1.0.1 installed with no C++ build (Pitfall 8 escape hatch not needed)
+- [Phase ?]: Removed CPU-only onnxruntime (pulled by insightface) and reinstalled onnxruntime-gpu — only onnxruntime-gpu 1.22.0 in the venv
+- [Phase ?]: HARD GPU GATE PASSED on RTX 3080 Ti: provider=CUDAExecutionProvider, cuDNN 92300, 203 MiB device-mem spike — real GPU not CPU fallback
 
 ### Pending Todos
 
@@ -80,6 +84,7 @@ None yet.
 - **Silent CPU fallback risk:** onnxruntime can run on CPU while still listing CUDA. Runtime provider-verification gate (build step 2) is mandatory before pipeline work.
 - **inswapper_128.onnx integrity:** community-hosted mirror; pin + assert SHA256 on download.
 - **Webcam node:** `/dev/video0` may be metadata-only; probe-and-pick a capturable node at startup.
+- Kernel 6.17.0-35 installed but NO nvidia module built for it — stay on 6.17.0-29 or build headers+dkms for -35 before rebooting, else nvidia-smi fails again
 
 ## Deferred Items
 
@@ -92,6 +97,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-05-29T21:09:10.807Z
-Stopped at: Phase 1 context gathered
-Resume file: .planning/phases/01-real-time-webcam-face-swap-mvp/01-CONTEXT.md
+Last session: 2026-05-30T07:00:28.036Z
+Stopped at: Completed 01-01-PLAN.md (GPU hard gate PASSED)
+Resume file: None
