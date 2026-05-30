@@ -45,7 +45,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 Plans:
 - [x] 01-01-PLAN.md — GPU/env gate (HARD GATE): fix NVIDIA driver, isolated venv, pinned stack, providers.py + verified CUDA inference [wave 1]
-- [ ] 01-02-PLAN.md — Models + FaceEngine: SHA256-verified models in project-local models/, embed()/process(), still-image swap [wave 2]
+- [x] 01-02-PLAN.md — Models + FaceEngine: SHA256-verified models in project-local models/, embed()/process(), still-image swap [wave 2]
 - [ ] 01-03-PLAN.md — Walking Skeleton (Core Value): capture thread + keep-newest buffer + inference pipeline + PreviewSink + live PySide6 swap [wave 3]
 - [ ] 01-04-PLAN.md — UI build-out: Start/Stop, load-photo (change-target-without-restart), device picker, FPS counter, GPU/CPU badge, mirror/swap toggles [wave 4]
 - [ ] 01-05-PLAN.md — Graceful-degradation polish: CPU fallback, honest provider badge, friendly camera/photo errors, release-on-stop/crash, README, final acceptance [wave 5]
@@ -62,4 +62,4 @@ Single phase: 1
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Real-Time Webcam Face Swap (MVP) | 1/5 | In Progress | - |
+| 1. Real-Time Webcam Face Swap (MVP) | 2/5 | In Progress | - |
