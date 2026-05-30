@@ -12,5 +12,10 @@ SITE="$VENV/lib/python3.12/site-packages"
 #   $VENV/lib/python3.12/site-packages/nvidia/cudnn/lib
 #   $VENV/lib/python3.12/site-packages/nvidia/cublas/lib
 #   $VENV/lib/python3.12/site-packages/nvidia/cuda_runtime/lib
-export LD_LIBRARY_PATH="$SITE/nvidia/cudnn/lib:$SITE/nvidia/cublas/lib:$SITE/nvidia/cuda_runtime/lib:${LD_LIBRARY_PATH:-}"
+#   $VENV/lib/python3.12/site-packages/nvidia/curand/lib
+#   $VENV/lib/python3.12/site-packages/nvidia/cufft/lib
+#   $VENV/lib/python3.12/site-packages/nvidia/cuda_nvrtc/lib
+# curand/cufft/cuda_nvrtc are added (01-02 carry-forward) so the buffalo_l
+# analyser warm-up binds CUDA warning-clean (no dlopen "cannot open" noise).
+export LD_LIBRARY_PATH="$SITE/nvidia/cudnn/lib:$SITE/nvidia/cublas/lib:$SITE/nvidia/cuda_runtime/lib:$SITE/nvidia/curand/lib:$SITE/nvidia/cufft/lib:$SITE/nvidia/cuda_nvrtc/lib:${LD_LIBRARY_PATH:-}"
 exec "$VENV/bin/python" "$HERE/run.py" "$@"
