@@ -1,0 +1,62 @@
+# =============================================================================
+# swap-fase — .dockerignore
+# Keep the build context small AND keep secrets/weights/personal images OUT of
+# the image. Mirrors .gitignore + the build's "models are mounted, not baked"
+# rule. Anything matched here is NOT sent to the Docker daemon / COPY . layer.
+# =============================================================================
+
+# Isolated project-local virtualenv (host-specific; never goes in the image).
+.venv/
+venv/
+
+# Model weights (buffalo_l, inswapper_128*.onnx, *.pth) — large, license-
+# restricted, and downloaded+verified at runtime into the mounted /app/models.
+# NEVER bake them into the image or ship them in the context.
+models/
+*.onnx
+*.pth
+*.pt
+*.zip
+
+# Personal / target / output images — NEVER include a face image in the image.
+*.jpg
+*.jpeg
+*.png
+*.bmp
+*.webp
+
+# Git metadata.
+.git/
+.gitignore
+.gitattributes
+
+# Python bytecode / build / packaging caches.
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Editor / OS cruft.
+.vscode/
+.idea/
+.DS_Store
+
+# Scratch + temp.
+/tmp/
+*.log
+swapped*.jpg
+
+# Planning artifacts (GSD workflow notes — not needed in the runtime image).
+.planning/
+
+# Docker's own files don't need to be inside the context.
+Dockerfile
+docker-compose.yml
+.dockerignore

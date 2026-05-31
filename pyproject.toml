@@ -1,23 +1,56 @@
 [project]
-name = "swapfase"
+name = "swap-fase"
 version = "0.1.0"
-description = "Local real-time webcam face-swap desktop app (single-image / InsightFace inswapper)"
+description = "Real-time webcam face swap with virtual-camera output for video calls"
+readme = "README.md"
 requires-python = ">=3.12"
-readme = "CLAUDE.md"
+license = { text = "MIT" }
+keywords = ["face-swap", "webcam", "insightface", "virtual-camera", "real-time"]
+classifiers = [
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Environment :: GPU",
+    "Topic :: Multimedia :: Video",
+    "Intended Audience :: End Users/Desktop",
+]
 
-# NOTE: runtime dependencies are pinned in requirements.txt (the authoritative,
-# frozen pin set installed into the isolated project-local .venv). The literal
-# pins are listed here for documentation/parity; CUDA/cuDNN come from the
-# onnxruntime-gpu [cuda,cudnn] extras — never a system CUDA toolkit.
+# Runtime dependencies. NOTE: `onnxruntime` is deliberately NOT listed here — the
+# correct ONNX Runtime build is platform/accelerator specific and is installed on
+# top of these base deps by the platform installer (install.sh / install.ps1):
+#   Windows                -> onnxruntime-directml
+#   Linux + NVIDIA         -> onnxruntime-gpu[cuda,cudnn]==1.22.0
+#   Linux + AMD (ROCm)     -> onnxruntime-rocm (custom index) else CPU onnxruntime
+#   Linux Intel / no GPU   -> onnxruntime (CPU)
+#   macOS (Apple Silicon)  -> onnxruntime-silicon (CoreML) else onnxruntime (CPU)
+# The literal pins below mirror requirements/base.txt for documentation parity.
 dependencies = [
-    "onnxruntime-gpu[cuda,cudnn]==1.22.0",
     "insightface==1.0.1",
     "opencv-python==4.13.0.92",
     "numpy==2.2.1",
-    "PySide6==6.8.*",
-    # Virtual camera (VCAM): swapped stream -> v4l2loopback (--vcam flag).
+    "PySide6>=6.8,<6.9",
+    # Virtual camera: push the swapped stream to a virtual webcam (--vcam flag).
+    # Linux -> v4l2loopback; Windows/macOS -> OBS Virtual Camera (auto-detected).
     "pyvirtualcam==0.15.0",
+    "pillow",
+    "tqdm",
 ]
+
+[project.optional-dependencies]
+# Convenience extras so power users can `pip install -e .[<accelerator>]` instead
+# of running the installer. Pick exactly ONE — never combine onnxruntime with
+# onnxruntime-gpu in the same environment.
+cuda = ["onnxruntime-gpu[cuda,cudnn]==1.22.0"]   # Linux + NVIDIA (CUDA 12.x / cuDNN 9.x)
+directml = ["onnxruntime-directml"]               # Windows (NVIDIA / AMD / Intel)
+cpu = ["onnxruntime"]                             # Linux Intel / no-GPU fallback
+
+[project.scripts]
+swap-fase = "swapfase.app:main"
+
+[project.urls]
+Homepage = "https://github.com/yaro01072009/swap-fase"
+Repository = "https://github.com/yaro01072009/swap-fase"
 
 [build-system]
 requires = ["setuptools>=68"]

@@ -1,8 +1,11 @@
 # Isolated project-local venv — never committed (CLAUDE.md: don't touch global env)
 .venv/
 
-# Downloaded model weights (buffalo_l, inswapper_128*.onnx) — fetched/cached locally, offline
+# Downloaded model weights (buffalo_l, inswapper_128*.onnx) — fetched/cached
+# locally, offline. Never commit large/non-commercial model binaries.
 models/
+*.onnx
+*.pth
 
 # Python bytecode / caches
 __pycache__/
@@ -14,5 +17,39 @@ __pycache__/
 build/
 dist/
 
-# Swap output scratch files
+# Scratch / output images written by the app + dev scripts (face data — never
+# commit). swapped.jpg / before.png / after.png are local swap previews.
 swapped*.jpg
+before.png
+after.png
+
+# Root-level test/scratch images (personal photos must never be committed).
+# These patterns are anchored to the repo ROOT, so docs/ image assets survive.
+/*.jpg
+/*.jpeg
+/*.png
+/*.webp
+/*.bmp
+
+# Local scratch dir
+/tmp/
+
+# Allow documentation image assets (badges, diagrams, screenshots WITHOUT a real
+# face) to be committed under docs/ despite the root image rules above.
+!docs/**/*.png
+!docs/**/*.jpg
+!docs/**/*.jpeg
+!docs/**/*.webp
+!docs/**/*.svg
+.env
+.env.*
+*.pem
+*.key
+*.p12
+id_rsa
+id_ed25519
+local.properties
+*.keystore
+*.jks
+credentials.json
+secrets.json

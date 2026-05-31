@@ -32,7 +32,8 @@ from .capture import CaptureThread, list_capturable_devices
 from .engine import FaceEngine, NoFaceError
 from .framebuffer import LatestFrameBuffer
 from .pipeline import InferenceWorker
-from .sink import DEFAULT_VCAM_DEVICE, PreviewSink, TeeSink, V4l2Sink
+from .platform_detect import os_name
+from .sink import DEFAULT_VCAM_DEVICE, PreviewSink, TeeSink, VirtualCamSink
 from .state import AppState
 
 logger = logging.getLogger(__name__)
@@ -60,15 +61,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument(
         "--vcam",
         action="store_true",
-        help="ALSO output the swapped stream to a v4l2loopback virtual camera so "
-        "Zoom/Meet/Discord can use it (pick the camera named 'DeepLiveCam'). The "
-        "on-screen preview keeps working alongside it.",
+        help="ALSO output the swapped stream to a virtual camera so "
+        "Zoom/Meet/Discord can use it. Linux: a v4l2loopback node (pick "
+        "'DeepLiveCam'). Windows/macOS: the OBS Virtual Camera (install OBS "
+        "Studio and start its Virtual Camera first). The on-screen preview keeps "
+        "working alongside it.",
     )
     p.add_argument(
         "--vcam-device",
         default=DEFAULT_VCAM_DEVICE,
-        help=f"v4l2loopback node to write the virtual camera to "
-        f"(default: {DEFAULT_VCAM_DEVICE}, card name 'DeepLiveCam').",
+        help="virtual-camera device to write to. Linux default: "
+        f"{DEFAULT_VCAM_DEVICE!r} (v4l2loopback, card 'DeepLiveCam'). "
+        "Windows/macOS default: None (pyvirtualcam auto-detects OBS Virtual "
+        "Camera).",
     )
     p.add_argument(
         "--vcam-mirror",
@@ -89,6 +94,7 @@ def main(argv: list[str] | None = None) -> int:
         level=logging.INFO, format="%(levelname)s %(name)s: %(message)s"
     )
     args = parse_args(argv)
+    logger.info("platform: %s (sys.platform=%s)", os_name(), sys.platform)
 
     # 1) Models present + verified (network only on first run).
     inswapper_path = ensure_models()
@@ -105,13 +111,13 @@ def main(argv: list[str] | None = None) -> int:
     devices = list_capturable_devices()
     if not devices:
         print(
-            "error: no capturable webcam found (probed /dev/video0..3,10). "
+            "error: no capturable webcam found (probed camera indices 0..3,10). "
             "Is the camera plugged in and not held by another app?",
             file=sys.stderr,
         )
         return 1
     device_index = args.device if args.device is not None else devices[0]
-    print(f"capturable nodes: {devices}; using /dev/video{device_index}")
+    print(f"capturable camera indices: {devices}; using index {device_index}")
 
     # 4) Read + embed the target photo's largest face (cached source — Pattern 3).
     target_img = cv2.imread(args.target)
@@ -150,17 +156,19 @@ def main(argv: list[str] | None = None) -> int:
     # --vcam, fan the swapped frame out to BOTH the preview AND a v4l2loopback
     # virtual camera via a TeeSink, so the user sees themselves on screen while
     # the video call sees the face-swapped stream ("DeepLiveCam").
-    vcam_sink: V4l2Sink | None = None
+    vcam_sink: VirtualCamSink | None = None
     if args.vcam:
         # Match the ACTUAL capture resolution (capture.py reads SWAPFASE_CAP_W/H,
         # default 640×480) so the virtual camera streams at full quality instead of
-        # downscaling. V4l2Sink resizes any off-size frame defensively. The preview
-        # stays mirrored (D-03); the virtual camera is un-mirrored by default so call
-        # participants see the user the right way round (opt back in with --vcam-mirror).
+        # downscaling. VirtualCamSink resizes any off-size frame defensively. The
+        # preview stays mirrored (D-03); the virtual camera is un-mirrored by default
+        # so call participants see the user the right way round (opt back in with
+        # --vcam-mirror). Device default is per-OS (Linux /dev/video10; Windows/macOS
+        # None => pyvirtualcam auto-detects OBS Virtual Camera).
         from .capture import _CAP_HEIGHT, _CAP_WIDTH
 
         try:
-            vcam_sink = V4l2Sink(
+            vcam_sink = VirtualCamSink(
                 device=args.vcam_device,
                 width=_CAP_WIDTH,
                 height=_CAP_HEIGHT,
@@ -170,10 +178,16 @@ def main(argv: list[str] | None = None) -> int:
         except RuntimeError as exc:
             print(f"error: virtual camera could not start: {exc}", file=sys.stderr)
             return 1
-        print(
-            f"virtual camera ON -> {args.vcam_device} "
-            f"(pick 'DeepLiveCam' as your camera in Zoom/Meet/Discord)"
-        )
+        if os_name() == "linux":
+            print(
+                f"virtual camera ON -> {args.vcam_device} "
+                "(pick 'DeepLiveCam' as your camera in Zoom/Meet/Discord)"
+            )
+        else:
+            print(
+                "virtual camera ON -> OBS Virtual Camera "
+                "(pick 'OBS Virtual Camera' as your camera in Zoom/Meet/Discord)"
+            )
         sink = TeeSink([preview_sink, vcam_sink])
     else:
         sink = preview_sink

@@ -1,4 +1,10 @@
-# swap-fase — pinned dependency set (installed into the isolated project-local .venv)
+# swap-fase — Linux + NVIDIA reference pin set (this machine's reproducible install).
+#
+# This file = cross-platform BASE deps + the Linux+NVIDIA onnxruntime, so the
+# existing `uv pip install -r requirements.txt` on this reference host keeps
+# working unchanged. Other platforms must NOT use this file directly — run the
+# platform installer instead (install.sh on Linux/macOS, install.ps1 on Windows),
+# which layers the correct onnxruntime on top of requirements/base.txt.
 #
 # Install with uv (preferred) into an isolated venv — NEVER the global/shared env:
 #   uv venv --python 3.12 .venv
@@ -7,18 +13,13 @@
 # CUDA 12.x runtime + cuDNN 9.x come from the onnxruntime-gpu [cuda,cudnn] extras
 # below — NO system CUDA toolkit (CLAUDE.md "What NOT to Use").
 #
-# IMPORTANT: install ONLY onnxruntime-gpu. Never the CPU `onnxruntime` package in
-# the same venv — it collides with onnxruntime-gpu's files and causes a silent CPU
-# fallback. insightface pulls `onnxruntime` transitively; it must be uninstalled and
-# onnxruntime-gpu reinstalled (see 01-01-SUMMARY.md Deviations).
+# IMPORTANT: install ONLY onnxruntime-gpu in this venv. Never the CPU
+# `onnxruntime` package alongside it — they collide and cause a silent CPU
+# fallback. insightface pulls `onnxruntime` transitively; it must be uninstalled
+# and onnxruntime-gpu (re)installed (see install.sh, which handles this).
 
+# Cross-platform base (insightface, opencv, numpy, PySide6, pyvirtualcam, pillow, tqdm):
+-r requirements/base.txt
+
+# Linux + NVIDIA inference runtime: ONNX Runtime GPU + venv-local CUDA 12.x / cuDNN 9.x.
 onnxruntime-gpu[cuda,cudnn]==1.22.0
-insightface==1.0.1
-opencv-python==4.13.0.92
-numpy==2.2.1
-PySide6==6.8.*
-
-# Virtual camera (VCAM): push the swapped stream to a v4l2loopback node
-# (/dev/video10, card "DeepLiveCam") so Zoom/Meet/Discord can use it as a webcam.
-# Enabled with `--vcam`; lives behind the FrameSink seam (V4l2Sink/TeeSink).
-pyvirtualcam==0.15.0

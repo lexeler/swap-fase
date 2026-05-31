@@ -1,0 +1,23 @@
+# swap-fase — cross-platform BASE dependencies (NO onnxruntime here).
+#
+# onnxruntime is INTENTIONALLY excluded from this file. The correct runtime
+# package is platform/accelerator specific and is installed *on top* of these
+# base deps by the platform installer (install.sh / install.ps1) or a Dockerfile:
+#
+#   Windows                -> onnxruntime-directml      (NVIDIA / AMD / Intel GPU; CPU fallback)
+#   Linux + NVIDIA         -> onnxruntime-gpu[cuda,cudnn]==1.22.0  (CUDA 12.x + cuDNN 9.x)
+#   Linux + AMD (ROCm)     -> onnxruntime-rocm           (may need a custom index) else CPU onnxruntime
+#   Linux Intel / no GPU   -> onnxruntime                (CPU)
+#   macOS (Apple Silicon)  -> onnxruntime-silicon        (CoreML) else onnxruntime (CPU)
+#
+# NEVER install both onnxruntime AND onnxruntime-gpu into the same venv — their
+# files collide and the CUDA EP silently falls back to CPU. insightface may pull
+# the CPU `onnxruntime` transitively; the installer reconciles that.
+
+insightface==1.0.1
+opencv-python==4.13.0.92
+numpy==2.2.1
+PySide6>=6.8,<6.9
+pyvirtualcam==0.15.0
+pillow
+tqdm

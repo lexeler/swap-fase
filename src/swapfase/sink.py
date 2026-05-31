@@ -2,17 +2,21 @@
 
 A finished (swapped) frame has to go *somewhere*. The pipeline writes it to a
 ``FrameSink`` and does not know or care whether that sink paints to the Qt window
-or pushes to a v4l2loopback virtual camera. Keeping the output behind this tiny
-interface means the virtual-camera work is purely additive — a new ``V4l2Sink``
-+ a ``TeeSink`` fan-out — never a refactor of the pipeline or engine (ARCHITECTURE
-Pattern 4; PROJECT.md "leave a clean seam, don't build it").
+or pushes to a virtual camera. Keeping the output behind this tiny interface means
+the virtual-camera work is purely additive — a ``VirtualCamSink`` + a ``TeeSink``
+fan-out — never a refactor of the pipeline or engine (ARCHITECTURE Pattern 4;
+PROJECT.md "leave a clean seam, don't build it").
 
 Sinks implemented here:
   * ``PreviewSink`` — emits the BGR frame to the Qt UI via a bound signal callback.
   * ``NullSink`` — discards frames; for headless pipeline smoke tests.
-  * ``V4l2Sink`` — pushes frames to a v4l2loopback node (``/dev/video10``,
-    card name "DeepLiveCam") via ``pyvirtualcam`` so a video-call app can select
-    the face-swapped stream as its camera (the VCAM milestone).
+  * ``VirtualCamSink`` — pushes frames to a virtual camera via ``pyvirtualcam`` so
+    a video-call app can select the face-swapped stream as its camera (the VCAM
+    milestone). Cross-platform:
+      - Linux   -> v4l2loopback node (default ``/dev/video10``, card "DeepLiveCam")
+      - Windows -> OBS Virtual Camera (or Unity Capture) backend, auto-detected
+      - macOS   -> OBS Virtual Camera backend, auto-detected
+    ``V4l2Sink`` is kept as a backward-compatible alias.
   * ``TeeSink`` — fans one frame out to several child sinks (preview AND vcam at
     once); an error in one child never starves the others.
 """
@@ -25,11 +29,15 @@ from typing import Callable, Protocol
 import cv2
 import numpy as np
 
+from .platform_detect import default_vcam_device, is_linux
+
 logger = logging.getLogger(__name__)
 
-# The v4l2loopback node this machine exposes (card name "DeepLiveCam"). The user
-# picks "DeepLiveCam" as their camera in Zoom/Meet/Discord; we write to this node.
-DEFAULT_VCAM_DEVICE = "/dev/video10"
+# The default virtual-camera device per OS. On Linux this is the v4l2loopback node
+# (card "DeepLiveCam") the user selects in Zoom/Meet/Discord. On Windows/macOS it
+# is ``None`` so pyvirtualcam auto-detects the OBS Virtual Camera backend (there is
+# no ``/dev`` path). This mirrors ``platform_detect.default_vcam_device()``.
+DEFAULT_VCAM_DEVICE: str | None = default_vcam_device()
 
 
 class FrameSink(Protocol):
@@ -61,34 +69,44 @@ class NullSink:
         return None
 
 
-class V4l2Sink:
-    """Pushes finished frames to a v4l2loopback node so a call app can select them.
+class VirtualCamSink:
+    """Pushes finished frames to a virtual camera so a call app can select them.
 
-    Opens the loopback device (default ``/dev/video10``, card "DeepLiveCam") via
-    ``pyvirtualcam`` and, on each ``write(frame_bgr)``, sends the frame to it. The
-    swapped stream then appears as a real webcam to Zoom/Meet/Discord — the user
-    picks "DeepLiveCam" as their camera.
+    Opens a virtual-camera device via ``pyvirtualcam`` and, on each
+    ``write(frame_bgr)``, sends the frame to it. The swapped stream then appears as
+    a real webcam to Zoom/Meet/Discord. Cross-platform backend selection:
 
-    Frame-size contract: the loopback is configured for ``width``×``height`` at
-    construction; pyvirtualcam REQUIRES every sent frame to match that size exactly.
-    The real pipeline captures 640×480, but a frame can differ (e.g. a target-photo
-    passthrough on a faceless frame, or a future resolution change) — so ``write``
-    resizes any off-size frame back to the configured dimensions rather than
-    crashing the call.
+      * Linux   -> ``backend='v4l2loopback'``, default device ``/dev/video10``
+        (card "DeepLiveCam"). Requires v4l2loopback loaded with
+        ``exclusive_caps=1``.
+      * Windows -> pyvirtualcam auto-detects the **OBS Virtual Camera** backend
+        (or Unity Capture). The user MUST have OBS Studio's Virtual Camera (or
+        Unity Capture) installed. ``device`` defaults to ``None`` (auto-pick).
+      * macOS   -> pyvirtualcam auto-detects the **OBS Virtual Camera** backend;
+        OBS Studio's Virtual Camera must be installed. ``device`` defaults to
+        ``None``.
+
+    Frame-size contract: the virtual camera is configured for ``width``×``height``
+    at construction; pyvirtualcam REQUIRES every sent frame to match that size
+    exactly. The real pipeline captures 640×480, but a frame can differ (e.g. a
+    target-photo passthrough on a faceless frame, or a future resolution change) —
+    so ``write`` resizes any off-size frame back to the configured dimensions
+    rather than crashing the call.
 
     Mirroring: the on-screen preview is mirrored (selfie view, D-03), but a call's
     participants should see the user the RIGHT way round, so by default this sink
     UN-mirrors the incoming (already-mirrored) preview frame. Pass ``mirror=True``
     to keep the selfie flip on the virtual camera too.
 
-    Robustness: construction fails LOUDLY with a clear message if the loopback node
-    is missing or busy (so the user is told exactly what to fix), and per-frame send
-    errors are logged-and-swallowed so one bad frame never kills the call stream.
+    Robustness: construction fails LOUDLY with a clear, OS-aware message if the
+    virtual camera cannot open (so the user is told exactly what to fix), and
+    per-frame send errors are logged-and-swallowed so one bad frame never kills the
+    call stream.
     """
 
     def __init__(
         self,
-        device: str = DEFAULT_VCAM_DEVICE,
+        device: str | None = DEFAULT_VCAM_DEVICE,
         width: int = 640,
         height: int = 480,
         fps: float = 30.0,
@@ -105,38 +123,66 @@ class V4l2Sink:
         except ImportError as exc:  # pragma: no cover - import guard
             raise RuntimeError(
                 "virtual camera requested but pyvirtualcam is not installed. "
-                "Install it into the project venv: "
-                "uv pip install --python .venv/bin/python pyvirtualcam"
+                "Install it into the project venv (e.g. "
+                "`pip install pyvirtualcam`)."
             ) from exc
 
         self._PixelFormat = pyvirtualcam.PixelFormat
+
+        # Build the kwargs for pyvirtualcam.Camera. On Linux we pin the
+        # v4l2loopback backend + the explicit /dev node so we hit "DeepLiveCam"
+        # deterministically. On Windows/macOS we let pyvirtualcam auto-detect the
+        # OBS Virtual Camera backend and only pass an explicit device if the caller
+        # gave one (otherwise device=None lets it auto-pick). BGR fmt matches our
+        # OpenCV frames, so NO per-frame BGR→RGB conversion is needed on the hot path.
+        cam_kwargs: dict[str, object] = {
+            "width": self._width,
+            "height": self._height,
+            "fps": fps,
+            "fmt": pyvirtualcam.PixelFormat.BGR,
+        }
+        if is_linux():
+            cam_kwargs["backend"] = "v4l2loopback"
+            if device is not None:
+                cam_kwargs["device"] = device
+        else:
+            # Windows/macOS: only pass device if explicitly provided; None => auto.
+            if device is not None:
+                cam_kwargs["device"] = device
+
         try:
-            # backend='v4l2loopback' targets the exact node; BGR fmt matches our
-            # OpenCV frames (the loopback's native pixel format here is BGR4), so
-            # NO per-frame BGR→RGB conversion is needed on the hot path.
-            self._cam = pyvirtualcam.Camera(
-                width=self._width,
-                height=self._height,
-                fps=fps,
-                device=device,
-                backend="v4l2loopback",
-                fmt=pyvirtualcam.PixelFormat.BGR,
-            )
+            self._cam = pyvirtualcam.Camera(**cam_kwargs)
         except Exception as exc:  # noqa: BLE001 - surface a clear, catchable error
-            raise RuntimeError(
-                f"could not open virtual camera {device!r}. Is the v4l2loopback "
-                "node present (v4l2-ctl --list-devices should show 'DeepLiveCam') "
-                "and not held by another app? If pyvirtualcam reports an "
-                "exclusive_caps error, the loopback may need exclusive_caps=0. "
-                f"Underlying error: {exc}"
-            ) from exc
+            raise RuntimeError(self._open_error_message(device, exc)) from exc
+
+        # pyvirtualcam may auto-pick a device name; report the real one if exposed.
+        actual = getattr(self._cam, "device", device)
+        self._device = actual
         logger.info(
             "virtual camera open: %s (%dx%d @ %.0ffps, fmt=BGR, mirror=%s)",
-            device, self._width, self._height, fps, mirror,
+            actual, self._width, self._height, fps, mirror,
+        )
+
+    @staticmethod
+    def _open_error_message(device: str | None, exc: Exception) -> str:
+        """OS-aware, actionable message for a failed virtual-camera open."""
+        if is_linux():
+            return (
+                f"could not open virtual camera {device!r}. Is the v4l2loopback "
+                "node present (`v4l2-ctl --list-devices` should show 'DeepLiveCam') "
+                "and not held by another app? If pyvirtualcam reports an "
+                "exclusive_caps error, the loopback may need exclusive_caps=1. "
+                f"Underlying error: {exc}"
+            )
+        return (
+            "could not open virtual camera. Install and enable the OBS Virtual "
+            "Camera (OBS Studio -> 'Start Virtual Camera') — or Unity Capture on "
+            "Windows — so pyvirtualcam has a backend to target, then retry. "
+            f"Underlying error: {exc}"
         )
 
     def write(self, frame: np.ndarray) -> None:
-        """Send one BGR frame to the loopback; resize/flip as needed; never crash."""
+        """Send one BGR frame to the virtual camera; resize/flip as needed; never crash."""
         try:
             if frame is None:
                 return
@@ -155,7 +201,7 @@ class V4l2Sink:
             logger.exception("virtual camera dropped a frame; continuing")
 
     def close(self) -> None:
-        """Release the loopback device (idempotent)."""
+        """Release the virtual-camera device (idempotent)."""
         cam = getattr(self, "_cam", None)
         if cam is not None:
             try:
@@ -165,11 +211,17 @@ class V4l2Sink:
             self._cam = None
             logger.info("virtual camera closed: %s", self._device)
 
-    def __enter__(self) -> "V4l2Sink":
+    def __enter__(self) -> "VirtualCamSink":
         return self
 
     def __exit__(self, *_exc: object) -> None:
         self.close()
+
+
+# Backward-compatible alias: app.py and existing callers import ``V4l2Sink``.
+# The canonical, cross-platform name is ``VirtualCamSink``; this keeps the old
+# import working (and the name still reads correctly on the Linux v4l2loopback path).
+V4l2Sink = VirtualCamSink
 
 
 class TeeSink:
@@ -191,7 +243,7 @@ class TeeSink:
                 logger.exception("a tee child sink failed; continuing to the rest")
 
     def close(self) -> None:
-        """Close any child sink that exposes a close() (e.g. V4l2Sink)."""
+        """Close any child sink that exposes a close() (e.g. VirtualCamSink)."""
         for sink in self._sinks:
             close = getattr(sink, "close", None)
             if callable(close):

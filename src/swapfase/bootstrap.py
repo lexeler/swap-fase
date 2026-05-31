@@ -158,9 +158,13 @@ def ensure_buffalo_l() -> None:
     """
     from insightface.app import FaceAnalysis
 
-    # ctx_id=-1 keeps this presence-check cheap and provider-agnostic — it only
-    # needs to materialise the model files on disk, not bind the GPU.
-    app = FaceAnalysis(name="buffalo_l", root=MODELS_DIR)
+    # ctx_id=-1 + CPU provider keeps this presence-check cheap and quiet — it only
+    # needs to materialise the model files on disk, not bind the GPU. Pinning CPU
+    # avoids insightface's default CUDA-first list emitting a scary
+    # "CUDAExecutionProvider is not available" warning on DirectML/CPU machines.
+    app = FaceAnalysis(
+        name="buffalo_l", root=MODELS_DIR, providers=["CPUExecutionProvider"]
+    )
     app.prepare(ctx_id=-1, det_size=(640, 640))
 
 

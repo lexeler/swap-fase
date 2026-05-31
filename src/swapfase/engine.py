@@ -31,7 +31,7 @@ import insightface
 import numpy as np
 from insightface.app import FaceAnalysis
 
-from .providers import active_provider, preload_cuda_libs, select_providers
+from .providers import active_provider, preload_cuda_libs, select_providers, uses_gpu
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +74,11 @@ class FaceEngine:
         preload_cuda_libs()
 
         providers = select_providers(prefer_gpu)
-        gpu = providers[0] == CUDA
+        # ANY accelerator leading the list counts as GPU — CUDA on NVIDIA,
+        # DmlExecutionProvider on Windows (DirectML: NVIDIA/AMD/Intel), ROCm on
+        # AMD/Linux, CoreML on macOS. The old `providers[0] == CUDA` check wrongly
+        # reported CPU on DirectML and forced the analyser to ctx_id=-1 (CPU).
+        gpu = uses_gpu(providers)
         self.using_gpu = gpu
 
         # --- analyser (buffalo_l: detect + 512-d embedding) — built ONCE ------
@@ -96,14 +100,15 @@ class FaceEngine:
             det = getattr(self.analyser, "det_model", None)
             session = getattr(det, "session", None)
         self.provider = active_provider(session) if session is not None else (
-            CUDA if gpu else "CPUExecutionProvider"
+            providers[0] if gpu else "CPUExecutionProvider"
         )
 
-        if gpu and self.provider != CUDA:
+        if gpu and self.provider == "CPUExecutionProvider":
             logger.warning(
-                "Requested CUDA but the session bound %s — running on CPU "
-                "(silent-fallback; check cuDNN/CUDA libs on the loader path).",
-                self.provider,
+                "Requested GPU (%s) but the session bound CPUExecutionProvider — "
+                "running on CPU (silent fallback; check the accelerator's native "
+                "libs on the loader path).",
+                providers[0],
             )
         logger.info("FaceEngine ready: provider=%s using_gpu=%s", self.provider, gpu)
 

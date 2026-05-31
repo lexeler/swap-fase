@@ -1,0 +1,91 @@
+# =============================================================================
+# swap-fase — docker-compose (Linux + NVIDIA ONLY)
+# =============================================================================
+# HONEST PLATFORM CAVEAT: this compose file ONLY works on a Linux host with an
+# NVIDIA GPU. It needs, ON THE HOST:
+#   * nvidia-container-toolkit installed (so the GPU reservation below resolves)
+#   * the v4l2loopback module loaded BEFORE `up` so /dev/video10 exists
+#       sudo modprobe v4l2loopback video_nr=10 card_label="DeepLiveCam" exclusive_caps=1
+#   * a real webcam at /dev/video0 (the INPUT camera)
+#   * an X11 display reachable from the container (Qt GUI window)
+#       run `xhost +local:`  (scripts/run-docker.sh does this for you)
+# Windows / macOS / AMD / Intel / CPU-only: DON'T use Docker — use the native
+# installer. GPU + webcam + GUI + a kernel virtual-camera do not pass through
+# Docker on those platforms.
+#
+# Usage (see scripts/run-docker.sh for the guarded wrapper):
+#   docker compose build
+#   docker compose run --rm swap-fase --target /app/face.jpg --vcam
+# `run` (not `up`) is preferred so you can pass --target etc. as args; `up` uses
+# the `command:` default below.
+
+services:
+  swap-fase:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: swap-fase:latest
+    container_name: swap-fase
+
+    # --- GPU passthrough (requires nvidia-container-toolkit on the host) -------
+    # Modern Compose GPU syntax. If your Compose/daemon is older and ignores
+    # `deploy` outside Swarm, replace this whole block with the legacy line:
+    #     runtime: nvidia
+    # (or pass `--gpus all` to `docker run`). Both routes need the toolkit.
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    # Belt-and-braces for the env-var driver path used by nvidia-container-toolkit.
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility,video
+      # X11 display for the Qt preview window. Inherited from the host shell;
+      # `:0` is the common fallback. Bind-mount of the socket is below.
+      DISPLAY: ${DISPLAY:-:0}
+      # Qt platform. xcb (X11) is the reliable path in a container; the host's
+      # X11 socket is mounted below (works on X11 and, via XWayland, on Wayland
+      # sessions). To force-test other backends override QT_QPA_PLATFORM here.
+      QT_QPA_PLATFORM: xcb
+      # NOTE on Wayland: a pure-Wayland host must have XWayland running (default
+      # on GNOME/KDE) so the mounted X11 socket is honoured. Passing a Wayland
+      # socket into a container is brittle and intentionally NOT done here.
+
+    # host networking keeps things simple: no port mapping, and pyvirtualcam /
+    # any local IPC just works. (Linux-only feature — fine, this file is Linux.)
+    network_mode: host
+
+    # --- Devices: INPUT camera + OUTPUT virtual camera ------------------------
+    # /dev/video0  = the real webcam we capture from (INPUT).
+    # /dev/video10 = the v4l2loopback node we publish the swap to (OUTPUT, card
+    #                "DeepLiveCam"). The HOST must have created it via modprobe
+    #                FIRST — a container can't load the kernel module itself.
+    devices:
+      - /dev/video0:/dev/video0
+      - /dev/video10:/dev/video10
+
+    volumes:
+      # X11 socket so the Qt window can render on the host display. Pairs with
+      # `xhost +local:` on the host (scripts/run-docker.sh handles that).
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      # Model weights: bind the host ./models onto /app/models. Models are NEVER
+      # baked into the image or committed — bootstrap.ensure_models() downloads +
+      # SHA256-verifies them here on first run, then they persist on the host.
+      - ./models:/app/models
+      # The repo root, so a target photo dropped in the project dir is readable
+      # in-container at the same relative path, e.g. --target /app/face.jpg.
+      # (Read-only: the container never needs to write the source tree.)
+      - ./:/app:ro
+
+    # Default args when started with `docker compose up` (no CLI args). Override
+    # with `docker compose run --rm swap-fase --target ... --vcam`. Edit the path
+    # to your target photo (must live under the project dir so it maps into /app).
+    command: ["--help"]
+
+    # Let signals (Ctrl-C) reach the app cleanly to release the camera.
+    init: true
+    stdin_open: true
+    tty: true
